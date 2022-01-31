@@ -4,6 +4,7 @@ import pickle
 
 import matplotlib.pyplot as plt
 import numpy as np
+import scipy.stats as spst
 
 from hmc import summarize
 
@@ -21,6 +22,13 @@ def euclidean_samples():
                 d[ss] = pickle.load(g)
         euclid[ns] = d
     return euclid
+
+def iid_samples():
+    iid = []
+    for i in range(2):
+        with open(os.path.join('data', 'samples-{}.pkl'.format(i+1)), 'rb') as f:
+            iid.append(pickle.load(f))
+    return iid
 
 def softabs_samples():
     num_samples = [1000000]
@@ -178,32 +186,43 @@ def mmd():
 def kolmogorov_smirnov():
     euclid = euclidean_samples()[1000000]
     rmn = softabs_samples()[1000000]
+    iid = iid_samples()
+
+    num_iid_ks = 100
+    iid_ks = np.zeros(num_iid_ks)
+    x, y = iid[0]['iid'], iid[1]['iid']
+    for i in range(num_iid_ks):
+        u = np.random.normal(size=x.shape[-1])
+        u = u / np.linalg.norm(u)
+        iid_ks[i] = spst.ks_2samp(x@u, y@u).statistic
+
     ekeys = sorted(euclid.keys(), reverse=False)
     rkeys = sorted(rmn.keys(), reverse=False)
 
-    labels = ['Euclid. {}'.format(t) for t in ekeys] + ['Thresh. {:.0e}'.format(t) for t in rkeys]
+    labels = ['I.I.D.'] + ['Euclid. {}'.format(t) for t in ekeys] + ['Thresh. {:.0e}'.format(t) for t in rkeys]
     fig = plt.figure(figsize=(10, 4))
     ax = fig.add_subplot(111)
+    ax.violinplot(np.log10(iid_ks), showmeans=True, showmedians=True, showextrema=False)
 
     ess = {}
     for t in ekeys:
         k = 'euclid-{}'.format(t)
         ess[k] = np.log10(euclid[t]['ks'])
 
-    vpa = ax.violinplot([ess[k] for k in ess.keys()], showmeans=True, showmedians=True, showextrema=False)
+    vpa = ax.violinplot([ess[k] for k in ess.keys()], positions=np.array([2, 3, 4, 5]), showmeans=True, showmedians=True, showextrema=False)
 
     ess = {}
     for t in rkeys:
         k = 'rmn-{}'.format(t)
         ess[k] = np.log10(rmn[t]['ks'])
 
-    vpb = ax.violinplot([ess[k] for k in ess.keys()], positions=np.arange(len(rkeys)) + 5, showmeans=True, showmedians=True, showextrema=False)
+    vpb = ax.violinplot([ess[k] for k in ess.keys()], positions=np.arange(len(rkeys)) + 6, showmeans=True, showmedians=True, showextrema=False)
 
     ax.set_xticks(np.arange(1, len(labels) + 1))
     ax.set_xticklabels(['' for l in labels])
     ax.set_xticklabels(labels, rotation=90, ha='right', fontsize=16)
     ax.set_xlim(0.25, len(labels) + 0.75)
-    ax.axvline(len(ekeys) + 0.5, color='black', linestyle='--')
+    ax.axvline(len(ekeys) + 1.5, color='black', linestyle='--')
     ax.set_xlabel('')
     ax.set_ylabel('KS Statistic', fontsize=16)
     ax.tick_params(axis='y', labelsize=16)
@@ -368,8 +387,9 @@ def position_fixed_point():
     fig.savefig(os.path.join('images', 'num-fixed-point-position.pdf'))
 
 def main():
-    wasserstein_sliced()
     kolmogorov_smirnov()
+    exit()
+    wasserstein_sliced()
     mmd()
 
     volume_preservation()

@@ -38,7 +38,8 @@ class RiemannianLeapfrogProposal(Proposal):
                  thresh: float,
                  max_iters: int,
                  newton_momentum: bool=False,
-                 newton_position: bool=False
+                 newton_position: bool=False,
+                 newton_stability: bool=False
     ):
         super().__init__(RiemannianLeapfrogProposalInfo())
         self.metric = metric
@@ -47,6 +48,7 @@ class RiemannianLeapfrogProposal(Proposal):
         self.max_iters = max_iters
         self.newton_momentum = newton_momentum
         self.newton_position = newton_position
+        self.newton_stability = newton_stability
 
     @error_intercept
     @momentum_negation
@@ -65,7 +67,8 @@ class RiemannianLeapfrogProposal(Proposal):
             self.thresh,
             self.max_iters,
             self.newton_momentum,
-            self.newton_position
+            self.newton_position,
+            self.newton_stability
         )
         self.info.num_iters_pos.update(info.num_iters_pos / num_steps)
         self.info.num_iters_mom.update(info.num_iters_mom / num_steps)

@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH -C cascadelake
-#SBATCH -p week
-#SBATCH -c 2
+#SBATCH -p pi_lederman
+#SBATCH -c 5
 #SBATCH -t 168:00:00
 #SBATCH --job-name fn-sample
 #SBATCH -o output/fn-sample-%J.log

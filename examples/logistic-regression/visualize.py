@@ -326,7 +326,7 @@ def reversibility():
     ax.tick_params(axis='y', labelsize=24)
     ax.set_xlim(0.25, len(thresholds) + 0.75)
     ax.set_xlabel('$\log_{10}$ Threshold', fontsize=30)
-    ax.set_ylabel('$\log_{10}$ Vol. Pres. Err.', fontsize=30)
+    ax.set_ylabel('$\log_{10}$ Abs. Rev. Err.', fontsize=30)
     # ax.legend([bp["boxes"][0], nm_bp["boxes"][0], nb_bp["boxes"][0]], [r'Fixed Point', r'Newton (Mom.)', r'Newton (Mom. and Pos.)'], fontsize=20, loc='upper left')
     fig.tight_layout()
     fig.savefig(os.path.join('images', 'absolute-reversibility-vs-newton.pdf'))

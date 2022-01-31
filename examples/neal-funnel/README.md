@@ -2,7 +2,7 @@
 
 To generate independent samples from the Neal's funnel distribution, execute:
 ```
-python generate_samples.py
+sbatch generate_samples.sh
 python unit_vectors.py
 ```
 To visualize the transition kernel distance, execute:

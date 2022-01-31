@@ -11,15 +11,13 @@ import tqdm
 
 from hmc import DualAveraging, RuppertAveraging, metropolis_hastings, statistics, transforms
 from hmc.applications.t import posterior_factory
-from hmc.proposals import (EuclideanLeapfrogProposal, LagrangianLeapfrogProposal,
-                           RiemannianLeapfrogProposal, VectorFieldCoupledProposal,
-                           ImplicitMidpointProposal)
+from hmc.proposals import RiemannianLeapfrogProposal
 from hmc.integrators.vectors import vector_field_from_riemannian_auxiliaries, riemannian_metric_handler
 
 from load_samples import load_samples
 
 
-iid, Sigma, dof = load_samples(10000)
+iid, Sigma, dof = load_samples('samples-all-scale-10000.pkl')
 (
     log_posterior,
     metric,
@@ -59,7 +57,6 @@ def loss(state, log_thresh, step_size, num_steps):
 def main():
     step_size = 0.04
     num_steps = 20
-    # avg = DualAveraging(-10.0, -10.0, 0.05, 10, 0.75, minval=-10.0)
     avg = RuppertAveraging(-10.0, 0.75)
     loss_hist = []
     xb_hist = []
@@ -76,12 +73,13 @@ def main():
         xb_hist.append(avg.xb)
         x_hist.append(avg.x)
 
+    loss_hist = np.array(loss_hist)
     loss_summ = np.cumsum(loss_hist)
     loss_avg = loss_summ / (np.arange(len(loss_summ)) + 1.0)
 
     plt.figure()
-    plt.plot(loss_hist, label=r'$L_n$')
-    plt.plot(loss_avg, label=r'$\bar{L}_n$')
+    plt.plot(loss_hist - 8, label=r'$L_n$')
+    plt.plot(loss_avg - 8, label=r'$\bar{L}_n$')
     plt.grid(linestyle=':')
     plt.gca().tick_params(axis='x', labelsize=24)
     plt.gca().tick_params(axis='y', labelsize=24)
@@ -91,8 +89,8 @@ def main():
     plt.savefig(os.path.join('images', 'dual-averaging-loss.pdf'))
 
     plt.figure()
-    plt.plot(x_hist, label=r'$\delta_n$')
-    plt.plot(xb_hist, label=r'$\bar{\delta}_n$')
+    plt.plot(x_hist, label=r'$\log_{10}\delta_n$')
+    plt.plot(xb_hist, label=r'$\log_{10}\bar{\delta}_n$')
     plt.grid(linestyle=':')
     plt.gca().tick_params(axis='x', labelsize=24)
     plt.gca().tick_params(axis='y', labelsize=24)
@@ -116,8 +114,8 @@ def main():
             O[i, j] = H
 
     plt.figure()
-    plt.plot(thresholds, O[:10].T, 'k-', alpha=0.3)
-    plt.plot(thresholds, O.mean(0), linewidth=3, label=r'Expected $L(\delta)$')
+    plt.plot(thresholds, O[:10].T - 8, 'k-', alpha=0.3)
+    plt.plot(thresholds, O.mean(0) - 8, linewidth=3, label=r'Expected $L(\delta)$')
     plt.grid(linestyle=':')
     plt.xlabel('$\log_{10}$ Threshold', fontsize=30)
     plt.ylabel('$L(\delta)$', fontsize=30)

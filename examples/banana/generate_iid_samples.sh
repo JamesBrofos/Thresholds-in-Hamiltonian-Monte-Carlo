@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH -C cascadelake
-#SBATCH -p week
+#SBATCH -p pi_lederman
 #SBATCH -c 2
-#SBATCH -t 168:00:00
+#SBATCH -t 72:00:00
 #SBATCH --job-name banana-sample
 #SBATCH -o output/banana-sample-%J.log
 

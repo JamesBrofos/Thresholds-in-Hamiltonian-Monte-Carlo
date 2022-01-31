@@ -46,7 +46,7 @@ def main():
         1000: 35.57,
         10000: 110.72
     }[scale]
-    iid, Sigma, dof = load_samples(scale)
+    iid, Sigma, dof = load_samples('samples-all-scale-{}.pkl'.format(scale))
     with open(args.file_name, 'rb') as f:
         data = pickle.load(f)
     samples = data['samples']

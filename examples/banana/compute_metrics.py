@@ -4,7 +4,6 @@ import pickle
 
 import numpy as np
 import scipy.stats as spst
-from scipy.spatial.distance import cdist
 
 from hmc import mmd
 

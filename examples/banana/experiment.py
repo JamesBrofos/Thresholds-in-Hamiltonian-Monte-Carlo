@@ -4,8 +4,6 @@ import pickle
 import time
 
 import numpy as np
-import scipy.stats as spst
-from scipy.spatial.distance import cdist
 import tqdm
 
 from hmc import sample, summarize
@@ -32,6 +30,8 @@ parser.add_argument('--newton-momentum', dest='newton_momentum', action='store_t
 parser.add_argument('--no-newton-momentum', dest='newton_momentum', action='store_false')
 parser.add_argument('--newton-position', dest='newton_position', action='store_true', default=False, help='Enable Newton iterations for position fixed point solution')
 parser.add_argument('--no-newton-position', dest='newton_position', action='store_false')
+parser.add_argument('--newton-stability', dest='newton_stability', action='store_true', default=True, help='Check the stability of the fixed point solution obtained by Newton iterations')
+parser.add_argument('--no-newton-stability', dest='newton_stability', action='store_false')
 parser.add_argument('--seed', type=int, default=0, help='Pseudo-random number generator seed')
 args = parser.parse_args()
 
@@ -112,6 +112,8 @@ def main():
         assert args.thresh == 0.0 and args.max_iters == 0
     if args.method != 'riemannian':
         assert not args.newton_momentum and not args.newton_position
+    if not args.newton_momentum and not args.newton_position:
+        assert not args.newton_stability
 
     id = '-'.join(
         '{}-{}'.format(k, v) for k, v in vars(args).items()).replace('_', '-')
@@ -126,7 +128,8 @@ def main():
             args.thresh,
             args.max_iters,
             args.newton_momentum,
-            args.newton_position
+            args.newton_position,
+            args.newton_stability
         ),
         'implicit': ImplicitMidpointProposal(
             log_posterior,
@@ -147,7 +150,7 @@ def main():
         args.check_prob,
     )
 
-    with open(os.path.join('samples', 'samples-{}.pkl'.format(id)), 'wb') as f:
+    with open(os.path.join(os.path.expanduser('~'), 'scratch60', 'thresholds', 'banana', 'samples-{}.pkl'.format(id)), 'wb') as f:
         dat = {
             'samples': samples,
             'relrev': np.array(info.relrev.values),

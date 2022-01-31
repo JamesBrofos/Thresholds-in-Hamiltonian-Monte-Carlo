@@ -63,7 +63,7 @@ def newton_momentum_step(
     f = o + 0.5*pmcand@E@pmcand
     g = pmcand - (po + half_step*f)
     J = Id - half_step*E@pmcand
-    x, resid, rank, svals = spla.lstsq(J, g, overwrite_a=True, overwrite_b=True, check_finite=False, lapack_driver='gelsy')
+    x = np.linalg.solve(J, g)
     pm = pmcand - x
     delta = pm - pmcand
     num_iters += 1
@@ -108,18 +108,19 @@ def newton_position_step(
         Id: np.ndarray,
         state: RiemannianLeapfrogState,
 ) -> Tuple[np.ndarray, np.ndarray, int]:
-    qncand, _, num_iters = val
+    qncand, _, _, num_iters = val
     _, _, G, dG = auxiliaries(qncand)
     iG = solve_psd(G, Id)
     E = np.einsum('ij,jkl->ikl', iG, np.einsum('ijk,jl->ilk', dG, iG))
     Ep = np.einsum('ijk,j->ik', E, state.momentum)
-    J = Id + half_step*Ep
+    F = half_step*Ep
+    J = Id + F
     g = qncand - state.position - half_step*(iG@state.momentum + state.velocity)
-    x, resid, rank, svals = spla.lstsq(J, g, overwrite_a=True, overwrite_b=True, check_finite=False, lapack_driver='gelsy')
+    x = np.linalg.solve(J, g)
     qn = qncand - x
     delta = qn - qncand
     num_iters += 1
-    return qn, delta, num_iters
+    return qn, F, delta, num_iters
 
 def single_step(
         metric: Callable,
@@ -130,7 +131,8 @@ def single_step(
         thresh: float,
         max_iters: int,
         newton_momentum: bool,
-        newton_position: bool
+        newton_position: bool,
+        newton_stability: bool
 ) -> Tuple[RiemannianLeapfrogState, GeneralizedLeapfrogInfo]:
     """Implements a single step of the generalized leapfrog integrator, which
     involves an implicitly-defined update of the momentum, an implicit update
@@ -180,6 +182,7 @@ def single_step(
         while cond(val, thresh, max_iters):
             val = momentum_step(val, half_step, state)
         pm, vm, delta_mom, num_iters_mom = val
+        success_mom = np.max(np.abs(delta_mom)) < thresh
     else:
         val = (po + half_step*state.force, delta, 0)
         Id = np.eye(num_dims)
@@ -189,28 +192,41 @@ def single_step(
             val = newton_momentum_step(val, o, E, Id, half_step, state)
         pm, delta_mom, num_iters_mom = val
         vm = riemannian.velocity(state.inv_metric, pm)
+        J = half_step*E@pm
+        success_mom = np.max(np.abs(delta_mom)) < thresh
+        # Check if the computed fixed point solution is locally stable. This is
+        # equivalent to the operator norm of the Jacobian being less than one.
+        if newton_stability:
+            _, s, _ = np.linalg.svd(J)
+            if np.max(s) >= 1.0:
+                success_mom = False
 
-    success_mom = np.max(np.abs(delta_mom)) < thresh
     state.velocity = vm
     state.momentum = pm
 
     # The second step of the integrator is to find a fixed point of the
     # position variable. The first momentum gradient could be conceivably
     # cached and saved.
-    val = (qo + step_size*state.velocity, delta, 0)
     if not newton_position:
+        val = (qo + step_size*state.velocity, delta, 0)
         while cond(val, thresh, max_iters):
             val = position_step(val, half_step, metric, state)
+        qn, delta_pos, num_iters_pos = val
+        success_pos = np.max(np.abs(delta_pos)) < thresh
     else:
         Id = np.eye(num_dims)
+        val = (qo + step_size*state.velocity, Id, delta, 0)
         while cond(val, thresh, max_iters):
             val = newton_position_step(val, half_step, auxiliaries, Id, state)
-
-    qn, delta_pos, num_iters_pos = val
-    success_pos = np.max(np.abs(delta_pos)) < thresh
-    state.position = qn
+        qn, J, delta_pos, num_iters_pos = val
+        success_pos = np.max(np.abs(delta_pos)) < thresh
+        if newton_stability:
+            _, s, _ = np.linalg.svd(J)
+            if np.max(s) >= 1.0:
+                success_pos = False
 
     # Last step is to do an explicit half-step of the momentum variable.
+    state.position = qn
     state.update(auxiliaries)
     state.momentum += half_step*state.force
 
@@ -233,7 +249,8 @@ def generalized_leapfrog(
         thresh: float,
         max_iters: int,
         newton_momentum: bool,
-        newton_position: bool
+        newton_position: bool,
+        newton_stability: bool
 ) -> Tuple[RiemannianLeapfrogState, GeneralizedLeapfrogInfo]:
     """Implements the generalized leapfrog integrator which avoids recomputing
     redundant quantities at each iteration.
@@ -274,7 +291,8 @@ def generalized_leapfrog(
             thresh,
             max_iters,
             newton_momentum,
-            newton_position
+            newton_position,
+            newton_stability
         )
 
     state.logdet_metric = 2.0*np.sum(np.log(np.diag(state.sqrtm_metric)))

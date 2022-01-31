@@ -2,7 +2,7 @@
 
 To generate baseline data from the multivariate Student's t-distribution, execute:
 ```
-python generate_samples.py
+sbatch generate_samples.sh
 python unit_vectors.py
 ```
 To visualize the adaptation using Ruppert averaging, execute:

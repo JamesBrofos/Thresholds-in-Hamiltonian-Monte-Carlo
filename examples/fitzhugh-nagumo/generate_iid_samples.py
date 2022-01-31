@@ -12,8 +12,9 @@ from load_data import load_data
 
 
 def rejection_sampler(mean, std, logm, log_posterior):
-    low = mean - 9*std
-    high = mean + 9*std
+    k = 9
+    low = mean - k*std
+    high = mean + k*std
     while True:
         x = np.random.uniform(low=low, high=high)
         lp = log_posterior(x)
@@ -22,9 +23,9 @@ def rejection_sampler(mean, std, logm, log_posterior):
         if logu < lp - logm:
             yield x
 
-def main():
+def main(num_samples=100000, fname='samples.pkl'):
     y, t, sigma, state = load_data()
-    (log_posterior, _, _, _, _, riemannian_auxiliaries) = posterior_factory(
+    (log_posterior, _, _, _, _, _, riemannian_auxiliaries) = posterior_factory(
         state, y, t, sigma)
     mean = newton_raphson(np.array([0.2, 0.2, 3.0]), riemannian_auxiliaries)
     lp, _, G, _ = riemannian_auxiliaries(mean)
@@ -32,7 +33,6 @@ def main():
     logm = lp + 0.01
     std = np.sqrt(np.diag(invG))
 
-    num_samples = 100000
     sampler = rejection_sampler(mean, std, logm, log_posterior)
     samples = np.zeros([num_samples, 3])
     pbar = tqdm.tqdm(total=num_samples)
@@ -41,8 +41,10 @@ def main():
         samples[i] = x
         pbar.update(1)
 
-    with open(os.path.join('data', 'samples.pkl'), 'wb') as f:
+    with open(os.path.join('data', fname), 'wb') as f:
         pickle.dump(samples, f)
 
 if __name__ == '__main__':
-    main()
+    # main()
+    for i in range(10):
+        main(100000, 'samples-{}.pkl'.format(i+1))

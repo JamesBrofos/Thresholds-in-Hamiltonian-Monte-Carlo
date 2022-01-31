@@ -4,7 +4,7 @@ import pickle
 
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.integrate import odeint
+import scipy.stats as spst
 
 from hmc import summarize
 
@@ -22,6 +22,13 @@ def euclidean_samples(scale):
                 d[ss] = pickle.load(g)
         euclid[ns] = d
     return euclid
+
+def iid_samples(scale):
+    iid = []
+    for i in range(2):
+        with open(os.path.join('data', 'samples-{}-scale-{}.pkl'.format(i+1, scale)), 'rb') as f:
+            iid.append(pickle.load(f))
+    return iid
 
 def riemannian_samples(scale, newton_momentum=False, newton_position=False):
     num_samples = [1000000]
@@ -336,27 +343,38 @@ def kolmogorov_smirnov():
     rmn = riemannian_samples(scale)[1000000]
     nm_rmn = riemannian_samples(scale, True)[1000000]
     nb_rmn = riemannian_samples(scale, True, True)[1000000]
+    iid = iid_samples(scale)
+
+    num_iid_ks = 100
+    iid_ks = np.zeros(num_iid_ks)
+    x, y = iid[0]['iid'], iid[1]['iid']
+    for i in range(num_iid_ks):
+        u = np.random.normal(size=x.shape[-1])
+        u = u / np.linalg.norm(u)
+        iid_ks[i] = spst.ks_2samp(x@u, y@u).statistic
 
     ekeys = sorted(euclid.keys(), reverse=False)
     rkeys = sorted(rmn.keys(), reverse=False)
 
-    labels = ['Euclid. {}'.format(t) for t in ekeys] + ['Thresh. {:.0e}'.format(t) for t in rkeys]
+    labels = ['I.I.D.'] + ['Euclid. {}'.format(t) for t in ekeys] + ['Thresh. {:.0e}'.format(t) for t in rkeys]
     fig = plt.figure(figsize=(10, 4))
     ax = fig.add_subplot(111)
+
+    ax.violinplot([np.log10(iid_ks)], showmeans=True, showmedians=True, showextrema=False)
 
     ess = {}
     for t in ekeys:
         k = 'euclid-{}'.format(t)
         ess[k] = np.log10(euclid[t]['ks'])
 
-    vpa = ax.violinplot([ess[k] for k in ess.keys()], showmeans=True, showmedians=True, showextrema=False)
+    vpa = ax.violinplot([ess[k] for k in ess.keys()], positions=np.array([2, 3, 4]), showmeans=True, showmedians=True, showextrema=False)
 
     ess = {}
     for t in rkeys:
         k = 'rmn-{}'.format(t)
         ess[k] = np.log10(rmn[t]['ks'])
 
-    vpb = ax.violinplot([ess[k] for k in ess.keys()], positions=np.arange(len(rkeys)) + len(euclid) + 1, showmeans=True, showmedians=True, showextrema=False)
+    vpb = ax.violinplot([ess[k] for k in ess.keys()], positions=np.arange(len(rkeys)) + len(euclid) + 2, showmeans=True, showmedians=True, showextrema=False)
 
     ax.set_xticks(np.arange(1, len(labels) + 1))
     ax.set_xticklabels(['' for l in labels])
@@ -530,7 +548,7 @@ def reversibility():
     ax.tick_params(axis='y', labelsize=24)
     ax.set_xlim(0.25, len(thresholds) + 0.75)
     ax.set_xlabel('$\log_{10}$ Threshold', fontsize=30)
-    ax.set_ylabel('$\log_{10}$ Vol. Pres. Err.', fontsize=30)
+    ax.set_ylabel('$\log_{10}$ Abs. Rev. Err.', fontsize=30)
     fig.tight_layout()
     fig.savefig(os.path.join('images', 'absolute-reversibility-vs-newton.pdf'))
 
@@ -665,6 +683,10 @@ def position_fixed_point():
     fig.savefig(os.path.join('images', 'num-fixed-point-position-vs-newton.pdf'))
 
 def main():
+    kolmogorov_smirnov()
+    exit()
+    kolmogorov_smirnov_by_scale()
+
     position_fixed_point()
     momentum_fixed_point()
 
@@ -677,9 +699,6 @@ def main():
 
     wasserstein_sliced()
     mmd()
-    kolmogorov_smirnov_by_scale()
-    kolmogorov_smirnov()
-
 
 
 if __name__ == '__main__':

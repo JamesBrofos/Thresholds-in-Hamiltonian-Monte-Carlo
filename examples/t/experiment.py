@@ -35,7 +35,7 @@ args = parser.parse_args()
 
 np.random.seed(args.seed)
 
-iid, Sigma, dof = load_samples(args.scale)
+iid, Sigma, dof = load_samples('samples-all-scale-{}.pkl'.format(args.scale))
 (
     log_posterior,
     metric,

@@ -4,6 +4,7 @@ import pickle
 
 import matplotlib.pyplot as plt
 import numpy as np
+import scipy.stats as spst
 
 from hmc import summarize
 
@@ -13,7 +14,7 @@ def euclidean_samples():
     euclid = {}
     for ns in num_samples:
         d = {}
-        fns = sorted(glob.glob(os.path.join('samples', '*num-samples-{}-*euclidean*'.format(ns))))
+        fns = sorted(glob.glob(os.path.join(os.path.expanduser('~'), 'scratch60', 'thresholds', 'banana', '*num-samples-{}-*euclidean*'.format(ns))))
         for f in fns:
             ss = f.split('-step-size-')[1].split('-')[0]
             ss = float(ss)
@@ -22,12 +23,20 @@ def euclidean_samples():
         euclid[ns] = d
     return euclid
 
-def riemannian_samples(newton_momentum=False, newton_position=False):
+def iid_samples():
+    iid = []
+    with open(os.path.join('data', 'samples.pkl'), 'rb') as f:
+        iid.append(pickle.load(f))
+    with open(os.path.join('data', 'samples-{}.pkl'.format(1)), 'rb') as f:
+        iid.append(pickle.load(f))
+    return iid
+
+def riemannian_samples(newton_momentum=False, newton_position=False, newton_stability=False):
     num_samples = [1000, 10000, 100000, 1000000]
     rmn = {}
     for ns in num_samples:
         d = {}
-        fns = sorted(glob.glob(os.path.join('samples', '*num-steps-25-*num-samples-{}-*riemannian*-partial-momentum-0.0-*newton-momentum-{}*newton-position-{}*'.format(ns, newton_momentum, newton_position))))
+        fns = sorted(glob.glob(os.path.join(os.path.join(os.path.expanduser('~'), 'scratch60', 'thresholds', 'banana', '*num-steps-25-*num-samples-{}-*riemannian*-partial-momentum-0.0-*newton-momentum-{}*newton-position-{}*newton-stability-{}*'.format(ns, newton_momentum, newton_position, newton_stability)))))
         for f in fns:
             t = f.split('-thresh-')[1].split('-m')[0]
             t = float(t)
@@ -41,7 +50,7 @@ def implicit_samples():
     imp = {}
     for ns in num_samples:
         d = {}
-        fns = sorted(glob.glob(os.path.join('samples', '*step-size-0.1*num-steps-25-*num-samples-{}-*implicit*-partial-momentum-0.0-*'.format(ns))))
+        fns = sorted(glob.glob(os.path.join(os.path.join(os.path.expanduser('~'), 'scratch60', 'thresholds', 'banana', '*step-size-0.1*num-steps-25-*num-samples-{}-*implicit*-partial-momentum-0.0-*'.format(ns)))))
         for f in fns:
             t = f.split('-thresh-')[1].split('-m')[0]
             t = float(t)
@@ -346,48 +355,59 @@ def effective_sample_size_per_second():
 def kolmogorov_smirnov():
     euclid = euclidean_samples()[1000000]
     rmn = riemannian_samples()[1000000]
-    nm_rmn = riemannian_samples(True)[1000000]
-    nb_rmn = riemannian_samples(True, True)[1000000]
+    nm_rmn = riemannian_samples(True, False, False)[1000000]
+    nb_rmn = riemannian_samples(True, True, False)[1000000]
+    nbs_rmn = riemannian_samples(True, True, True)[1000000]
     imp = implicit_samples()[1000000]
+    iid = iid_samples()
+
+    num_iid_ks = 100
+    iid_ks = np.zeros(num_iid_ks)
+    x, y = iid[0], iid[1]
+    for i in range(num_iid_ks):
+        u = np.random.normal(size=x.shape[-1])
+        u = u / np.linalg.norm(u)
+        iid_ks[i] = spst.ks_2samp(x@u, y@u).statistic
 
     ekeys = sorted(euclid.keys(), reverse=False)
     rkeys = sorted(rmn.keys(), reverse=False)
     ikeys = sorted(imp.keys(), reverse=False)
 
-    labels = ['Euclid. {}'.format(t) for t in ekeys] + ['Thresh. {:.0e}'.format(t) for t in rkeys]
+    labels = ['I.I.D.'] + ['Euclid. {}'.format(t) for t in ekeys] + ['Thresh. {:.0e}'.format(t) for t in rkeys]
     fig = plt.figure(figsize=(10, 4))
     ax = fig.add_subplot(111)
+
+    ax.violinplot([np.log10(iid_ks)], showmeans=True, showmedians=True, showextrema=False)
 
     ess = {}
     for t in ekeys:
         k = 'euclid-{}'.format(t)
         ess[k] = np.log10(euclid[t]['ks'])
 
-    vpa = ax.violinplot([ess[k] for k in ess.keys()], showmeans=True, showmedians=True, showextrema=False)
+    vpa = ax.violinplot([ess[k] for k in ess.keys()], positions=np.array([2]), showmeans=True, showmedians=True, showextrema=False)
 
     ess = {}
     for t in rkeys:
         k = 'rmn-{}'.format(t)
         ess[k] = np.log10(rmn[t]['ks'])
 
-    vpb = ax.violinplot([ess[k] for k in ess.keys()], positions=np.arange(len(rkeys)) + 2, showmeans=True, showmedians=True, showextrema=False)
+    vpb = ax.violinplot([ess[k] for k in ess.keys()], positions=np.arange(len(rkeys)) + 3, showmeans=True, showmedians=True, showextrema=False)
 
     ess = {}
     for t in ikeys:
         k = 'imp-{}'.format(t)
         ess[k] = np.log10(imp[t]['ks'])
 
-    vpc = ax.violinplot([ess[k] for k in ess.keys()], positions=np.arange(len(ikeys)) + 2, showmeans=True, showmedians=True, showextrema=False)
+    vpc = ax.violinplot([ess[k] for k in ess.keys()], positions=np.arange(len(ikeys)) + 3, showmeans=True, showmedians=True, showextrema=False)
 
     ax.set_xticks(np.arange(1, len(labels) + 1))
     ax.set_xticklabels(['' for l in labels])
     ax.set_xticklabels(labels, rotation=90, ha='right', fontsize=16)
     ax.set_xlim(0.25, len(labels) + 0.75)
-    ax.axvline(len(ekeys) + 0.5, color='black', linestyle='--')
+    ax.axvline(len(ekeys) + 1.5, color='black', linestyle='--')
     ax.set_xlabel('')
     ax.set_ylabel('KS Statistic', fontsize=16)
     ax.tick_params(axis='y', labelsize=16)
-
     ax.grid(linestyle=':')
     ax.legend([vpb["bodies"][0], vpc["bodies"][0]], [r'Riemann. (G.L.F.)', r'Riemann. (I.M.)'], fontsize=16)
 
@@ -429,6 +449,42 @@ def kolmogorov_smirnov():
 
     fig.tight_layout()
     fig.savefig(os.path.join('images', 'kolmogorov-smirnov-vs-newton.pdf'))
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+
+    ess = {}
+    for t in rkeys:
+        k = 'rmn-{}'.format(t)
+        ess[k] = np.log10(rmn[t]['ks'])
+    vpb = ax.violinplot([ess[k] for k in ess.keys()], positions=np.arange(len(rkeys)) + 1, showmeans=True, showmedians=True, showextrema=False)
+
+    ess = {}
+    for t in rkeys:
+        k = 'rmn-{}'.format(t)
+        ess[k] = np.log10(nb_rmn[t]['ks'])
+    vpd = ax.violinplot([ess[k] for k in ess.keys()], positions=np.arange(len(rkeys)) + 1, showmeans=True, showmedians=True, showextrema=False)
+
+    ess = {}
+    for t in rkeys:
+        k = 'rmn-{}'.format(t)
+        ess[k] = np.log10(nbs_rmn[t]['ks'])
+    vpe = ax.violinplot([ess[k] for k in ess.keys()], positions=np.arange(len(rkeys)) + 1, showmeans=True, showmedians=True, showextrema=False)
+
+    ax.set_xticks(np.arange(1, len(labels) + 1))
+    ax.set_xticklabels(['' for l in labels])
+    ax.set_xticklabels(labels, rotation=90, ha='right', fontsize=16)
+    ax.set_xlim(0.25, len(labels) + 0.75)
+    ax.set_xlabel('')
+    ax.set_ylabel('KS Statistic', fontsize=16)
+    ax.tick_params(axis='y', labelsize=16)
+    ax.set_ylim((-3, 1))
+    ax.grid(linestyle=':')
+    ax.legend([vpb["bodies"][0], vpd["bodies"][0], vpe["bodies"][0]], [r'Fixed Point', r'Newton (Mom. and Pos.)', 'Newton (Stability Check)'], fontsize=16, loc='upper left')
+
+    fig.tight_layout()
+    fig.savefig(os.path.join('images', 'kolmogorov-smirnov-stability-check.pdf'))
+
 
 def volume_preservation():
     euclid = euclidean_samples()
@@ -559,7 +615,7 @@ def reversibility():
     ax.tick_params(axis='y', labelsize=24)
     ax.set_xlim(0.25, len(thresholds) + 0.75)
     ax.set_xlabel('$\log_{10}$ Threshold', fontsize=30)
-    ax.set_ylabel('$\log_{10}$ Vol. Pres. Err.', fontsize=30)
+    ax.set_ylabel('$\log_{10}$ Abs. Rev. Err.', fontsize=30)
     ax.legend([bp["boxes"][0], nm_bp["boxes"][0], nb_bp["boxes"][0]], [r'Fixed Point', r'Newton (Mom.)', r'Newton (Mom. and Pos.)'], fontsize=20, loc='upper left')
     ax.set_ylim((-16, 20))
     fig.tight_layout()
@@ -696,6 +752,7 @@ def position_fixed_point():
 
 def main():
     kolmogorov_smirnov()
+    exit()
     wasserstein_sliced()
     biau()
     mmd()
